@@ -1,0 +1,598 @@
+
+<!DOCTYPE html
+  PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html><head>
+      <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+   <!--
+This HTML was auto-generated from MATLAB code.
+To make changes, update the MATLAB code and republish this document.
+      --><title>rcv_proj4</title><meta name="generator" content="MATLAB 9.1"><link rel="schema.DC" href="http://purl.org/dc/elements/1.1/"><meta name="DC.date" content="2017-02-24"><meta name="DC.source" content="rcv_proj4.m"><style type="text/css">
+html,body,div,span,applet,object,iframe,h1,h2,h3,h4,h5,h6,p,blockquote,pre,a,abbr,acronym,address,big,cite,code,del,dfn,em,font,img,ins,kbd,q,s,samp,small,strike,strong,sub,sup,tt,var,b,u,i,center,dl,dt,dd,ol,ul,li,fieldset,form,label,legend,table,caption,tbody,tfoot,thead,tr,th,td{margin:0;padding:0;border:0;outline:0;font-size:100%;vertical-align:baseline;background:transparent}body{line-height:1}ol,ul{list-style:none}blockquote,q{quotes:none}blockquote:before,blockquote:after,q:before,q:after{content:'';content:none}:focus{outine:0}ins{text-decoration:none}del{text-decoration:line-through}table{border-collapse:collapse;border-spacing:0}
+
+html { min-height:100%; margin-bottom:1px; }
+html body { height:100%; margin:0px; font-family:Arial, Helvetica, sans-serif; font-size:10px; color:#000; line-height:140%; background:#fff none; overflow-y:scroll; }
+html body td { vertical-align:top; text-align:left; }
+
+h1 { padding:0px; margin:0px 0px 25px; font-family:Arial, Helvetica, sans-serif; font-size:1.5em; color:#d55000; line-height:100%; font-weight:normal; }
+h2 { padding:0px; margin:0px 0px 8px; font-family:Arial, Helvetica, sans-serif; font-size:1.2em; color:#000; font-weight:bold; line-height:140%; border-bottom:1px solid #d6d4d4; display:block; }
+h3 { padding:0px; margin:0px 0px 5px; font-family:Arial, Helvetica, sans-serif; font-size:1.1em; color:#000; font-weight:bold; line-height:140%; }
+
+a { color:#005fce; text-decoration:none; }
+a:hover { color:#005fce; text-decoration:underline; }
+a:visited { color:#004aa0; text-decoration:none; }
+
+p { padding:0px; margin:0px 0px 20px; }
+img { padding:0px; margin:0px 0px 20px; border:none; }
+p img, pre img, tt img, li img, h1 img, h2 img { margin-bottom:0px; } 
+
+ul { padding:0px; margin:0px 0px 20px 23px; list-style:square; }
+ul li { padding:0px; margin:0px 0px 7px 0px; }
+ul li ul { padding:5px 0px 0px; margin:0px 0px 7px 23px; }
+ul li ol li { list-style:decimal; }
+ol { padding:0px; margin:0px 0px 20px 0px; list-style:decimal; }
+ol li { padding:0px; margin:0px 0px 7px 23px; list-style-type:decimal; }
+ol li ol { padding:5px 0px 0px; margin:0px 0px 7px 0px; }
+ol li ol li { list-style-type:lower-alpha; }
+ol li ul { padding-top:7px; }
+ol li ul li { list-style:square; }
+
+.content { font-size:1.2em; line-height:140%; padding: 20px; }
+
+pre, code { font-size:12px; }
+tt { font-size: 1.2em; }
+pre { margin:0px 0px 20px; }
+pre.codeinput { padding:10px; border:1px solid #d3d3d3; background:#f7f7f7; }
+pre.codeoutput { padding:10px 11px; margin:0px 0px 20px; color:#4c4c4c; }
+pre.error { color:red; }
+
+@media print { pre.codeinput, pre.codeoutput { word-wrap:break-word; width:100%; } }
+
+span.keyword { color:#0000FF }
+span.comment { color:#228B22 }
+span.string { color:#A020F0 }
+span.untermstring { color:#B20000 }
+span.syscmd { color:#B28C00 }
+
+.footer { width:auto; padding:10px 0px; margin:25px 0px 0px; border-top:1px dotted #878787; font-size:0.8em; line-height:140%; font-style:italic; color:#878787; text-align:left; float:none; }
+.footer p { margin:0px; }
+.footer a { color:#878787; }
+.footer a:hover { color:#878787; text-decoration:underline; }
+.footer a:visited { color:#878787; }
+
+table th { padding:7px 5px; text-align:left; vertical-align:middle; border: 1px solid #d6d4d4; font-weight:bold; }
+table td { padding:7px 5px; text-align:left; vertical-align:top; border:1px solid #d6d4d4; }
+
+
+
+
+
+  </style></head><body><div class="content"><h2>Contents</h2><div><ul><li><a href="#2">Build Visual Word Vocabulary</a></li><li><a href="#4">Build Visual Dictionary (Histograms)</a></li><li><a href="#5">Soft-Weighting:</a></li><li><a href="#6">BOW Classification:</a></li></ul></div><pre class="codeinput"><span class="comment">%Niral Shah</span>
+<span class="comment">% RCV Bag of Words Implementation</span>
+<span class="comment">% ADD Distinguishable Colors (in MATLAB folder to path)</span>
+
+<span class="comment">% read in data set</span>
+setDir  = fullfile(toolboxdir(<span class="string">'vision'</span>),<span class="string">'visiondata'</span>,<span class="string">'imageSets'</span>);
+imds = imageDatastore(<span class="string">'/Users/niralshah/Desktop/rcv_imgDataset/'</span>,<span class="string">'IncludeSubfolders'</span>,true,<span class="string">'LabelSource'</span>,<span class="keyword">...</span>
+    <span class="string">'foldernames'</span>);
+
+[trainingSet,testSet] = splitEachLabel(imds,0.7,<span class="string">'randomize'</span>);
+
+<span class="comment">% Look at a subset of the training set to create Visual Word Dictionary</span>
+subtrainingSet = splitEachLabel(trainingSet,0.2,<span class="string">'randomize'</span>);
+K = 100;
+</pre><h2 id="2">Build Visual Word Vocabulary</h2><pre class="codeinput">global_descriptor = [];
+
+<span class="keyword">for</span> i =1:length(subtrainingSet.Files)
+    [I, fileinfo] = readimage(subtrainingSet,i);
+    <span class="comment">%fileinfo.Label</span>
+
+    [x,y,z] = size(I);
+    <span class="keyword">if</span>(z ~= 1)
+        I = rgb2gray(I) ;
+        I = imresize(I,[200,200]);
+    <span class="keyword">else</span>
+        I = imresize(I,[200,200]);
+    <span class="keyword">end</span>
+    <span class="comment">%figure;</span>
+    <span class="comment">%imshow(I)</span>
+    <span class="comment">%title(['Class:' char(fileinfo.Label) ' '])</span>
+
+    [f,d] = vl_sift(single(I));
+    global_descriptor = [global_descriptor; d'];
+
+<span class="keyword">end</span>
+
+[idx,C] = kmeans(double(global_descriptor),double(K));
+</pre><pre class="codeinput">centroids = C'; <span class="comment">% Have K (128 x 1) centroids</span>
+</pre><h2 id="4">Build Visual Dictionary (Histograms)</h2><p>for loop to compare descriptors to find the closest visual word label do this for every descriptor and increment to find kx1 histogram of labels</p><pre class="codeinput">labels = grp2idx(trainingSet.Labels);
+vw_histogram = [];
+<span class="keyword">for</span> i =1:length(trainingSet.Files)
+    [I, fileinfo] = readimage(trainingSet,i);
+
+
+    [x,y,z] = size(I);
+    <span class="keyword">if</span>(z ~= 1)
+        I = rgb2gray(I) ;
+        I = imresize(I,[200,200]);
+    <span class="keyword">else</span>
+        I = imresize(I,[200,200]);
+    <span class="keyword">end</span>
+
+
+    colors = distinguishable_colors(K);
+    [feat,des] = vl_sift(single(I));
+    [xlen,ylen] = size(des);
+    hg_training_image = zeros(1,K);
+    iPts = [];
+
+    <span class="keyword">for</span> j = 1:ylen
+       <span class="comment">% distance = sqrt(sum((double(centroids)-double(des(:,j))),1).^2)</span>
+        [IDX,D] = knnsearch(double(des(:,j)'),centroids');
+        [val,index]= min(D);
+        hg_training_image(index) = hg_training_image(index) + 1;
+        iPts = [iPts; feat(1,j) feat(2,j) colors(index,:)];
+    <span class="keyword">end</span>
+    vw_histogram = [vw_histogram;hg_training_image];
+
+<span class="comment">%  Code for K Distinguishable Colors Plots:</span>
+<span class="comment">%     colors1 = [iPts(:,3) iPts(:,4) iPts(:,5)]</span>
+<span class="comment">%     figure;</span>
+<span class="comment">%     imshow(I);</span>
+<span class="comment">%     hold on;</span>
+<span class="comment">%     scatter(iPts(:,1), iPts(:,2),[],colors1);</span>
+<span class="comment">%     hold off;</span>
+<span class="comment">%     pause(1);</span>
+<span class="comment">%     I = getframe(gcf);</span>
+<span class="comment">%     imwrite(I.cdata, ['pic' num2str(i) '.png']);</span>
+<span class="comment">%     close;</span>
+
+<span class="comment">%     Code to show histogram for each Image in the Training Set</span>
+<span class="comment">%       figure;</span>
+<span class="comment">%       histogram(hg_training_image,100);</span>
+<span class="comment">%       title(['Class:' char(fileinfo.Label) ' ']);</span>
+<span class="comment">%       I = getframe(gcf);</span>
+<span class="comment">%       imwrite(I.cdata, ['histogram' num2str(i) '.png']);</span>
+<span class="comment">%       close;</span>
+<span class="keyword">end</span>
+</pre><h2 id="5">Soft-Weighting:</h2><p>Ultimately not used as results were worse with soft-weighting</p><pre class="codeinput"><span class="comment">% for loop to compare descriptors to find the closest visual word label</span>
+<span class="comment">% do this for every descriptor and increment to find kx1 histogram of</span>
+<span class="comment">% labels</span>
+<span class="comment">% labels = grp2idx(trainingSet.Labels);</span>
+<span class="comment">% vw_histogram = [];</span>
+<span class="comment">%</span>
+<span class="comment">% for i =1:length(trainingSet.Files)</span>
+<span class="comment">%     [I, fileinfo] = readimage(trainingSet,i);</span>
+<span class="comment">%</span>
+<span class="comment">%</span>
+<span class="comment">%     [x,y,z] = size(I);</span>
+<span class="comment">%     if(z ~= 1)</span>
+<span class="comment">%         I = rgb2gray(I) ;</span>
+<span class="comment">%         I = imresize(I,[200,200]);</span>
+<span class="comment">%     else</span>
+<span class="comment">%         I = imresize(I,[200,200]);</span>
+<span class="comment">%     end</span>
+<span class="comment">%</span>
+<span class="comment">%</span>
+<span class="comment">%</span>
+<span class="comment">%     [feat,des] = vl_sift(single(I));</span>
+<span class="comment">%     [xlen,ylen] = size(des);</span>
+<span class="comment">%     hg_training_image = zeros(1,K);</span>
+<span class="comment">%</span>
+<span class="comment">%     for j = 1:ylen</span>
+<span class="comment">%        % distance = sqrt(sum((double(centroids)-double(des(:,j))),1).^2)</span>
+<span class="comment">%         [IDX,D] = knnsearch(double(des(:,j)'),centroids');</span>
+<span class="comment">%         dsum = zeros(1,8);</span>
+<span class="comment">%         indices = zeros(1,8);</span>
+<span class="comment">%</span>
+<span class="comment">%         for k = 1:8 % find the weights and the indices</span>
+<span class="comment">%             [val,index]= min(D);</span>
+<span class="comment">%             dsum(k) =  val;</span>
+<span class="comment">%             indices(k) = index;</span>
+<span class="comment">%             D(index) = 10^5; % set smallest element to very high value,</span>
+<span class="comment">%                              %to allow to find the next smallest</span>
+<span class="comment">%         end</span>
+<span class="comment">%</span>
+<span class="comment">%         for k = 1:8 % add the weights to the histogram</span>
+<span class="comment">%             weight = 1- dsum(k)/sum(dsum);</span>
+<span class="comment">%             hg_training_image(indices(k)) = hg_training_image(indices(k))+weight;</span>
+<span class="comment">%         end</span>
+<span class="comment">%</span>
+<span class="comment">%     end</span>
+<span class="comment">%     vw_histogram = [vw_histogram;hg_training_image];</span>
+<span class="comment">%</span>
+<span class="comment">% %     figure;</span>
+<span class="comment">% %     histogram(hg_training_image,20);</span>
+<span class="comment">% %     title(['Class:' char(fileinfo.Label) ' ']);</span>
+<span class="comment">%</span>
+<span class="comment">% end</span>
+<span class="comment">%</span>
+</pre><h2 id="6">BOW Classification:</h2><pre class="codeinput">class_label = [];
+true_label = grp2idx(testSet.Labels);
+output = [];
+<span class="keyword">for</span> i =1:length(testSet.Files)
+    [I, fileinfo] = readimage(testSet,i);
+
+
+    [x,y,z] = size(I);
+    <span class="keyword">if</span>(z ~= 1)
+        I = rgb2gray(I) ;
+        I = imresize(I,[200,200]);
+    <span class="keyword">else</span>
+        I = imresize(I,[200,200]);
+    <span class="keyword">end</span>
+
+    [feat_t,des_t] = vl_sift(single(I));
+    [xlen,ylen] = size(des_t);
+    hg_test_image = zeros(1,K);
+
+<span class="comment">% hard -weighting:</span>
+     <span class="keyword">for</span> j = 1:ylen <span class="comment">% build VW histogram</span>
+        [IDX,D] = knnsearch(double(des_t(:,j)'),centroids');
+        [val,index]= min(D); <span class="comment">%- hard-weighting</span>
+
+
+        <span class="comment">% my own implementation of nearest-neighbors:</span>
+            <span class="comment">%distance = sqrt(sum((double(centroids)-double(des_t(:,j))).^2,1));</span>
+            <span class="comment">%[value1, index1] = min(distance);</span>
+            <span class="comment">% results matched that of knnsearch</span>
+
+         hg_test_image(index) = hg_test_image(index) + 1; <span class="comment">%- hard-weighting</span>
+    <span class="keyword">end</span>
+
+
+ <span class="comment">% soft-weighting:</span>
+<span class="comment">%     for j = 1:ylen % build VW histogram</span>
+<span class="comment">%         [IDX,D] = knnsearch(double(des_t(:,j)'),centroids');</span>
+<span class="comment">%         %[val,index]= min(D); - hard-weighting</span>
+<span class="comment">%         dsum = zeros(1,8);</span>
+<span class="comment">%         indices = zeros(1,8);</span>
+<span class="comment">%</span>
+<span class="comment">%         % soft -weighting:</span>
+<span class="comment">%         for k = 1:8 % find the weights and the indices</span>
+<span class="comment">%             [val,index]= min(D);</span>
+<span class="comment">%             dsum(k) =  val;</span>
+<span class="comment">%             indices(k) = index;</span>
+<span class="comment">%             D(index) = 10^5; % set smallest element to very high value,</span>
+<span class="comment">%                              %to allow to find the next smallest</span>
+<span class="comment">%         end</span>
+<span class="comment">%</span>
+<span class="comment">%         for k = 1:8 % add the weights to the histogram</span>
+<span class="comment">%             weight = 1- dsum(k)/sum(dsum);</span>
+<span class="comment">%             hg_test_image(indices(k)) = hg_test_image(indices(k))+weight;</span>
+<span class="comment">%         end</span>
+<span class="comment">%</span>
+<span class="comment">%</span>
+<span class="comment">%         % my own implementation of nearest-neighbors:</span>
+<span class="comment">%             %distance = sqrt(sum((double(centroids)-double(des_t(:,j))).^2,1));</span>
+<span class="comment">%             %[value1, index1] = min(distance);</span>
+<span class="comment">%             % results matched that of knnsearch</span>
+<span class="comment">%</span>
+<span class="comment">%        %  hg_test_image(index) = hg_test_image(index) + 1; - hard-weighting</span>
+<span class="comment">%     end</span>
+<span class="comment">%</span>
+
+
+    <span class="comment">% compare histogram from training set</span>
+    [ids, euc_dist] = knnsearch(hg_test_image,vw_histogram);
+
+    <span class="comment">% own implementation of nearest neighbors- correct results</span>
+    <span class="comment">%distance = sqrt(sum(((vw_histogram)-repmat(hg_test_image,length(vw_histogram),1)).^2,2));</span>
+    <span class="comment">%[value1, index1] = min(distance)</span>
+
+    [val,index]= min(euc_dist);
+    class_label = [class_label;labels(index)];
+<span class="keyword">end</span>
+</pre><pre class="codeinput">output = [class_label true_label];
+accuracy = 1- length(find(class_label ~= true_label))/length(class_label)
+</pre><pre class="codeoutput">accuracy =
+    0.6600
+</pre><pre class="codeinput">confusionMatrix = zeros(10,10);
+
+<span class="keyword">for</span> i= 1:length(true_label)
+     confusionMatrix(true_label(i),class_label(i)) = confusionMatrix(true_label(i),class_label(i))+1;
+<span class="keyword">end</span>
+
+<span class="keyword">for</span> j = 1:length(confusionMatrix)
+   cum_sum = sum(confusionMatrix(j,:));
+   confusionMatrix(j,:) = confusionMatrix(j,:)./cum_sum;
+<span class="keyword">end</span>
+
+confusionMatrix
+
+stats = confusionmatStats(confusionMatrix);
+
+acc = stats.accuracy
+sens = stats.sensitivity
+specfs = stats.specificity
+prec = stats.precision
+recall = stats.recall
+</pre><pre class="codeoutput">confusionMatrix =
+  Columns 1 through 7
+    0.4667         0    0.2000         0         0    0.0667         0
+         0    0.8667    0.0667         0         0    0.0667         0
+    0.0667         0    0.8667         0         0         0         0
+         0         0    0.0667    0.8667         0         0         0
+    0.0667         0    0.0667         0    0.6667    0.1333         0
+    0.0667    0.0667    0.2667         0    0.0667    0.2667    0.0667
+    0.0667         0    0.1333         0         0         0    0.4667
+         0         0         0         0    0.0667         0         0
+         0         0    0.2000    0.0667         0         0         0
+         0         0         0         0         0    0.0667         0
+  Columns 8 through 10
+    0.0667    0.0667    0.1333
+         0         0         0
+         0         0    0.0667
+         0    0.0667         0
+    0.0667         0         0
+    0.0667    0.0667    0.0667
+         0         0    0.3333
+    0.8000         0    0.1333
+         0    0.6000    0.1333
+         0    0.2000    0.7333
+</pre><pre class="codeoutput error">Undefined function 'confusionmatStats' for input arguments of type 'double'.
+Error in rcv_proj4 (line 253)
+stats = confusionmatStats(confusionMatrix);</pre><p class="footer"><br><a href="http://www.mathworks.com/products/matlab/">Published with MATLAB&reg; R2016b</a><br></p></div><!--
+##### SOURCE BEGIN #####
+%Niral Shah
+% RCV Bag of Words Implementation 
+% ADD Distinguishable Colors (in MATLAB folder to path)
+
+% read in data set 
+setDir  = fullfile(toolboxdir('vision'),'visiondata','imageSets');
+imds = imageDatastore('/Users/niralshah/Desktop/rcv_imgDataset/','IncludeSubfolders',true,'LabelSource',...
+    'foldernames');
+
+[trainingSet,testSet] = splitEachLabel(imds,0.7,'randomize');
+
+% Look at a subset of the training set to create Visual Word Dictionary
+subtrainingSet = splitEachLabel(trainingSet,0.2,'randomize');
+K = 100; 
+
+%% Build Visual Word Vocabulary
+
+
+global_descriptor = [];
+
+for i =1:length(subtrainingSet.Files)
+    [I, fileinfo] = readimage(subtrainingSet,i);
+    %fileinfo.Label
+  
+    [x,y,z] = size(I);
+    if(z ~= 1)
+        I = rgb2gray(I) ;
+        I = imresize(I,[200,200]);
+    else
+        I = imresize(I,[200,200]);   
+    end
+    %figure;
+    %imshow(I)
+    %title(['Class:' char(fileinfo.Label) ' '])
+    
+    [f,d] = vl_sift(single(I));
+    global_descriptor = [global_descriptor; d']; 
+        
+end
+
+[idx,C] = kmeans(double(global_descriptor),double(K));
+%%
+
+centroids = C'; % Have K (128 x 1) centroids
+
+%% Build Visual Dictionary (Histograms)
+% for loop to compare descriptors to find the closest visual word label
+% do this for every descriptor and increment to find kx1 histogram of
+% labels
+labels = grp2idx(trainingSet.Labels);
+vw_histogram = [];
+for i =1:length(trainingSet.Files)
+    [I, fileinfo] = readimage(trainingSet,i);
+    
+  
+    [x,y,z] = size(I);
+    if(z ~= 1)
+        I = rgb2gray(I) ;
+        I = imresize(I,[200,200]);
+    else
+        I = imresize(I,[200,200]);   
+    end
+   
+    
+    colors = distinguishable_colors(K);
+    [feat,des] = vl_sift(single(I));
+    [xlen,ylen] = size(des);
+    hg_training_image = zeros(1,K);
+    iPts = [];
+    
+    for j = 1:ylen
+       % distance = sqrt(sum((double(centroids)-double(des(:,j))),1).^2)
+        [IDX,D] = knnsearch(double(des(:,j)'),centroids');
+        [val,index]= min(D);
+        hg_training_image(index) = hg_training_image(index) + 1;
+        iPts = [iPts; feat(1,j) feat(2,j) colors(index,:)];
+    end
+    vw_histogram = [vw_histogram;hg_training_image];
+    
+%  Code for K Distinguishable Colors Plots:  
+%     colors1 = [iPts(:,3) iPts(:,4) iPts(:,5)]
+%     figure;
+%     imshow(I);
+%     hold on;
+%     scatter(iPts(:,1), iPts(:,2),[],colors1);
+%     hold off;
+%     pause(1);
+%     I = getframe(gcf);
+%     imwrite(I.cdata, ['pic' num2str(i) '.png']);
+%     close;
+    
+%     Code to show histogram for each Image in the Training Set
+%       figure;
+%       histogram(hg_training_image,100); 
+%       title(['Class:' char(fileinfo.Label) ' ']);
+%       I = getframe(gcf);
+%       imwrite(I.cdata, ['histogram' num2str(i) '.png']);
+%       close;
+end
+%% Soft-Weighting: 
+% Ultimately not used as results were worse with soft-weighting
+
+% for loop to compare descriptors to find the closest visual word label
+% do this for every descriptor and increment to find kx1 histogram of
+% labels
+% labels = grp2idx(trainingSet.Labels);
+% vw_histogram = [];
+% 
+% for i =1:length(trainingSet.Files)
+%     [I, fileinfo] = readimage(trainingSet,i);
+%     
+%   
+%     [x,y,z] = size(I);
+%     if(z ~= 1)
+%         I = rgb2gray(I) ;
+%         I = imresize(I,[200,200]);
+%     else
+%         I = imresize(I,[200,200]);   
+%     end
+%    
+%     
+%     
+%     [feat,des] = vl_sift(single(I));
+%     [xlen,ylen] = size(des);
+%     hg_training_image = zeros(1,K);
+%    
+%     for j = 1:ylen
+%        % distance = sqrt(sum((double(centroids)-double(des(:,j))),1).^2)
+%         [IDX,D] = knnsearch(double(des(:,j)'),centroids');
+%         dsum = zeros(1,8);
+%         indices = zeros(1,8);
+%         
+%         for k = 1:8 % find the weights and the indices
+%             [val,index]= min(D);
+%             dsum(k) =  val;
+%             indices(k) = index;
+%             D(index) = 10^5; % set smallest element to very high value, 
+%                              %to allow to find the next smallest
+%         end
+%         
+%         for k = 1:8 % add the weights to the histogram
+%             weight = 1- dsum(k)/sum(dsum); 
+%             hg_training_image(indices(k)) = hg_training_image(indices(k))+weight;
+%         end
+%         
+%     end
+%     vw_histogram = [vw_histogram;hg_training_image];
+%     
+% %     figure;
+% %     histogram(hg_training_image,20);
+% %     title(['Class:' char(fileinfo.Label) ' ']);
+%     
+% end
+% 
+
+
+%% BOW Classification: 
+
+class_label = [];
+true_label = grp2idx(testSet.Labels);
+output = [];
+for i =1:length(testSet.Files)
+    [I, fileinfo] = readimage(testSet,i);
+    
+  
+    [x,y,z] = size(I);
+    if(z ~= 1)
+        I = rgb2gray(I) ;
+        I = imresize(I,[200,200]);
+    else
+        I = imresize(I,[200,200]);   
+    end
+    
+    [feat_t,des_t] = vl_sift(single(I));
+    [xlen,ylen] = size(des_t);
+    hg_test_image = zeros(1,K);
+    
+% hard -weighting:  
+     for j = 1:ylen % build VW histogram
+        [IDX,D] = knnsearch(double(des_t(:,j)'),centroids');
+        [val,index]= min(D); %- hard-weighting
+      
+        
+        % my own implementation of nearest-neighbors:
+            %distance = sqrt(sum((double(centroids)-double(des_t(:,j))).^2,1));
+            %[value1, index1] = min(distance);
+            % results matched that of knnsearch 
+        
+         hg_test_image(index) = hg_test_image(index) + 1; %- hard-weighting
+    end
+    
+    
+ % soft-weighting:
+%     for j = 1:ylen % build VW histogram
+%         [IDX,D] = knnsearch(double(des_t(:,j)'),centroids');
+%         %[val,index]= min(D); - hard-weighting
+%         dsum = zeros(1,8);
+%         indices = zeros(1,8);
+%        
+%         % soft -weighting:  
+%         for k = 1:8 % find the weights and the indices
+%             [val,index]= min(D);
+%             dsum(k) =  val;
+%             indices(k) = index;
+%             D(index) = 10^5; % set smallest element to very high value, 
+%                              %to allow to find the next smallest
+%         end
+%         
+%         for k = 1:8 % add the weights to the histogram
+%             weight = 1- dsum(k)/sum(dsum); 
+%             hg_test_image(indices(k)) = hg_test_image(indices(k))+weight;
+%         end
+%         
+%         
+%         % my own implementation of nearest-neighbors:
+%             %distance = sqrt(sum((double(centroids)-double(des_t(:,j))).^2,1));
+%             %[value1, index1] = min(distance);
+%             % results matched that of knnsearch 
+%         
+%        %  hg_test_image(index) = hg_test_image(index) + 1; - hard-weighting
+%     end
+%     
+
+
+    % compare histogram from training set
+    [ids, euc_dist] = knnsearch(hg_test_image,vw_histogram);
+     
+    % own implementation of nearest neighbors- correct results
+    %distance = sqrt(sum(((vw_histogram)-repmat(hg_test_image,length(vw_histogram),1)).^2,2));
+    %[value1, index1] = min(distance)
+    
+    [val,index]= min(euc_dist);
+    class_label = [class_label;labels(index)];
+end
+%%
+output = [class_label true_label];
+accuracy = 1- length(find(class_label ~= true_label))/length(class_label)
+
+%%
+confusionMatrix = zeros(10,10); 
+
+for i= 1:length(true_label)
+     confusionMatrix(true_label(i),class_label(i)) = confusionMatrix(true_label(i),class_label(i))+1;
+end
+
+for j = 1:length(confusionMatrix)
+   cum_sum = sum(confusionMatrix(j,:));
+   confusionMatrix(j,:) = confusionMatrix(j,:)./cum_sum;
+end
+
+confusionMatrix
+
+stats = confusionmatStats(confusionMatrix);
+
+acc = stats.accuracy
+sens = stats.sensitivity
+specfs = stats.specificity
+prec = stats.precision
+recall = stats.recall
+        
+
+##### SOURCE END #####
+--></body></html>
